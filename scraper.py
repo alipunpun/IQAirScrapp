@@ -3,18 +3,18 @@ from bs4 import BeautifulSoup
 import csv
 from datetime import datetime
 import os
-import time
 
-# Daftar kota yang ingin kamu scrap (kamu bisa tambah atau ganti sesuai URL di IQAir)
-KOTA_LIST = [
-    {"nama": "Jakarta", "url": "https://www.iqair.com/indonesia/jakarta"},
-    {"nama": "Hanoi", "url": "https://www.iqair.com/vietnam/hanoi"},
-    {"nama": "Ho Chi Minh", "url": "https://www.iqair.com/vietnam/ho-chi-minh-city"}
-]
+URL_JAKARTA = "https://www.iqair.com/indonesia/jakarta"
 
-def scrape_all_cities():
-    # Membuat session anti-bot Cloudflare
-    scraper = cloudscraper.create_scraper(delay=10)
+def scrape_jakarta():
+    # Memodifikasi scraper agar lebih identik dengan browser Google Chrome di PC Windows
+    scraper = cloudscraper.create_scraper(
+        browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'desktop': True
+        }
+    )
     
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     file_exists = os.path.isfile('iqair_data.csv')
@@ -25,31 +25,28 @@ def scrape_all_cities():
         if not file_exists:
             writer.writerow(['Timestamp', 'Kota', 'AQI']) # Header kolom jika file baru
             
-        for kota in KOTA_LIST:
-            try:
-                print(f"Mengambil data untuk {kota['nama']}...")
-                response = scraper.get(kota['url'])
+        try:
+            print("Mengambil data untuk Jakarta...")
+            response = scraper.get(URL_JAKARTA)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
                 
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    
-                    # Mengambil nilai AQI dari class HTML IQAir
-                    aqi_element = soup.find(class_="aqi-value__value")
-                    
-                    if aqi_element:
-                        aqi_value = aqi_element.text.strip()
-                        writer.writerow([now, kota['nama'], aqi_value])
-                        print(f"-> Sukses! AQI {kota['nama']}: {aqi_value}")
-                    else:
-                        print(f"-> Gagal menemukan elemen elemen HTML AQI di kota {kota['nama']}.")
+                # Mengambil nilai AQI
+                aqi_element = soup.find(class_="aqi-value__value")
+                
+                if aqi_element:
+                    aqi_value = aqi_element.text.strip()
+                    writer.writerow([now, 'Jakarta', aqi_value])
+                    print(f"-> Sukses! AQI Jakarta saat ini: {aqi_value}")
                 else:
-                    print(f"-> Diblokir/Error di kota {kota['nama']}. Status Code: {response.status_code}")
+                    print("-> Gagal menemukan elemen HTML AQI. Struktur web mungkin berubah.")
+            else:
+                print(f"-> Diblokir/Error. Status Code: {response.status_code}")
+                print("-> Info: Jika terus 429, berarti IP GitHub Actions sedang dilimit oleh IQAir.")
                 
-                # Jeda 2 detik antar kota agar tidak dianggap spamming oleh server IQAir
-                time.sleep(2)
-                
-            except Exception as e:
-                print(f"-> Terjadi error pada kota {kota['nama']}: {e}")
+        except Exception as e:
+            print(f"-> Terjadi error: {e}")
 
 if __name__ == "__main__":
-    scrape_all_cities()
+    scrape_jakarta()
